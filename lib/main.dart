@@ -38,7 +38,7 @@ class MyApp extends StatelessWidget {
         builder: (context, child) {
           return GetMaterialApp(
             debugShowCheckedModeBanner: false,
-            title: "Affirmations App",
+            title: "ToDoApp",
             initialRoute: AppPages.INITIAL,
             getPages: AppPages.routes,
           );
