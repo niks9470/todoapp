@@ -1,30 +1,18 @@
-// lib/app/modules/home/controllers/home_controller.dart
-import 'dart:convert';
+
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:get/get.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import 'package:flutter_local_notifications/flutter_local_notifications.dart';
-import 'package:timezone/timezone.dart' as tz;
-
 import '../../../data/models/task_model.dart';
-
-final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
-FlutterLocalNotificationsPlugin();
-
-Future<void> initNotifications() async {
-  final AndroidInitializationSettings initializationSettingsAndroid =
-  AndroidInitializationSettings('@mipmap/ic_launcher');
-  final InitializationSettings initializationSettings =
-  InitializationSettings(android: initializationSettingsAndroid);
-  await flutterLocalNotificationsPlugin.initialize(initializationSettings);
-}
 
 class HomeController extends GetxController {
   var tasks = <Task>[].obs;
-  // Add these lines inside HomeController
+  final _firestore = FirebaseFirestore.instance;
+
   final searchCtrl = TextEditingController();
   var searchQuery = ''.obs;
 
+  var selectedPriority = 0.obs; // 0 = All, 1 = High, 2 = Medium, 3 = Low
+  var selectedStatus = 'all'.obs; // 'all', 'complete', 'incomplete'
   List<Task> get filteredTasks {
     if (searchQuery.value.isEmpty) return tasks;
     return tasks.where((t) =>
@@ -33,106 +21,43 @@ class HomeController extends GetxController {
     ).toList();
   }
 
-
-
-  final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
-  FlutterLocalNotificationsPlugin();
-
-  Future<void> initNotifications() async {
-    const AndroidInitializationSettings initializationSettingsAndroid =
-    AndroidInitializationSettings('@mipmap/ic_launcher');
-    const InitializationSettings initializationSettings =
-    InitializationSettings(android: initializationSettingsAndroid);
-    await flutterLocalNotificationsPlugin.initialize(initializationSettings);
-  }
-
   @override
   void onInit() {
     super.onInit();
-    initNotifications();
-    loadTasks();
+    listenToTasks();
+  }
+
+  void listenToTasks() {
+    _firestore.collection('tasks').snapshots().listen((snapshot) {
+      tasks.value = snapshot.docs.map((doc) => Task.fromJson(doc.data())).toList();
+    });
+  }
+
+  Future<void> addTask(Task task) async {
+    final docRef = _firestore.collection('tasks').doc(task.id);
+    await docRef.set({
+      ...task.toJson(),
+      'id': task.id,
+      'dueDate': Timestamp.fromDate(task.dueDate),
+    });
   }
 
 
-  // void addTask(Task task) {
-  //   tasks.add(task);
-  //   saveTasks();
-  // }
-
-  // void updateTask(Task updatedTask) {
-  //   final index = tasks.indexWhere((t) => t.id == updatedTask.id);
-  //   if (index != -1) {
-  //     tasks[index] = updatedTask;
-  //     saveTasks();
-  //   }
-  // }
-
-  // void deleteTask(String id) {
-  //   tasks.removeWhere((t) => t.id == id);
-  //   saveTasks();
-  // }
-
-  Future<void> saveTasks() async {
-    final prefs = await SharedPreferences.getInstance();
-    final taskList = tasks.map((t) => t.toJson()).toList();
-    prefs.setString('tasks', jsonEncode(taskList));
+  Future<void> updateTask(Task updatedTask) async {
+    await _firestore.collection('tasks').doc(updatedTask.id).update({
+      ...updatedTask.toJson(),
+      'dueDate': Timestamp.fromDate(updatedTask.dueDate),
+    });
   }
 
-
-  Future<void> scheduleTaskNotification(Task task) async {
-    final scheduledTime = task.dueDate.subtract(const Duration(hours: 1));
-    if (scheduledTime.isAfter(DateTime.now())) {
-      final tz.TZDateTime tzScheduledTime = tz.TZDateTime.from(scheduledTime, tz.local);
-      await flutterLocalNotificationsPlugin.zonedSchedule(
-        int.parse(task.id),
-        'Task Reminder',
-        'Your task "${task.title}" is due soon!',
-        tzScheduledTime,
-        const NotificationDetails(
-          android: AndroidNotificationDetails('task_channel', 'Task Reminders'),
-        ),
-        androidAllowWhileIdle: true,
-        uiLocalNotificationDateInterpretation:
-        UILocalNotificationDateInterpretation.absoluteTime,
-        matchDateTimeComponents: DateTimeComponents.dateAndTime,
-      );
-    }
+  Future<void> deleteTask(String id) async {
+    await _firestore.collection('tasks').doc(id).delete();
+  }
+  Future<void> toggleTaskCompleted(Task task) async {
+    await _firestore.collection('tasks').doc(task.id).update({
+      'completed': !task.completed,
+    });
   }
 
-  Future<void> cancelTaskNotification(String taskId) async {
-    await flutterLocalNotificationsPlugin.cancel(int.parse(taskId));
-  }
-
-  void addTask(Task task) {
-    tasks.add(task);
-    saveTasks();
-    scheduleTaskNotification(task);
-  }
-
-  void updateTask(Task updatedTask) {
-    final index = tasks.indexWhere((t) => t.id == updatedTask.id);
-    if (index != -1) {
-      tasks[index] = updatedTask;
-      saveTasks();
-      cancelTaskNotification(updatedTask.id);
-      scheduleTaskNotification(updatedTask);
-    }
-  }
-
-  void deleteTask(String id) {
-    tasks.removeWhere((t) => t.id == id);
-    saveTasks();
-    cancelTaskNotification(id);
-  }
-
-
-
-  Future<void> loadTasks() async {
-    final prefs = await SharedPreferences.getInstance();
-    final data = prefs.getString('tasks');
-    if (data != null) {
-      final List decoded = jsonDecode(data);
-      tasks.value = decoded.map((e) => Task.fromJson(e)).toList();
-    }
-  }
 }
+

@@ -5,6 +5,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:get/get_navigation/src/root/get_material_app.dart';
 import 'package:timezone/data/latest.dart' as tz;
+import 'package:todotask/firebase_options.dart';
 import 'app/routes/app_pages.dart';
 void main() async{
   void printFcmToken() async {
@@ -12,7 +13,9 @@ void main() async{
     print('FCM Token: $token');
   }
   WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp();
+  await Firebase.initializeApp(
+    options:DefaultFirebaseOptions.currentPlatform,
+  );
   printFcmToken();
   tz.initializeTimeZones();
 

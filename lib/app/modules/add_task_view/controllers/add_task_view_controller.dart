@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import '../../../data/models/task_model.dart';
@@ -33,7 +35,7 @@ class AddTaskViewController extends GetxController {
     update();
   }
 
-  void submit(BuildContext context) {
+  void submit(BuildContext context)async {
     if (!formKey.currentState!.validate() || dueDate == null) {
       if (dueDate == null) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -43,16 +45,16 @@ class AddTaskViewController extends GetxController {
       return;
     }
     final task = Task(
-      id: existingTask?.id ?? DateTime.now().millisecondsSinceEpoch.toString(),
+      id: existingTask?.id ?? Random().nextInt(1 << 31).toString(), // 32-bit int
       title: titleCtrl.text,
       description: descCtrl.text,
       dueDate: dueDate!,
       priority: selectedPriority,
     );
     if (existingTask == null) {
-      homeController.addTask(task);
+      await homeController.addTask(task);
     } else {
-      homeController.updateTask(task);
+      await homeController.updateTask(task);
     }
     Navigator.of(context).pop();
   }
